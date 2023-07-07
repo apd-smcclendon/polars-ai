@@ -1,6 +1,6 @@
 """ Prompt to correct error """
 
-import pandas as pd
+import polars as pl
 
 from .base import Prompt
 
@@ -9,7 +9,7 @@ class CorrectMultipleDataframesErrorPrompt(Prompt):
     """Prompt to generate Python code"""
 
     text: str = """
-You are provided with the following pandas dataframes:"""
+You are provided with the following python polars dataframes:"""
 
     def __init__(
         self,

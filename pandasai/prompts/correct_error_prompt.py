@@ -1,7 +1,7 @@
 """ Prompt to correct Python Code on Error
 ```
 Today is {today_date}.
-You are provided with a pandas dataframe (df) with {num_rows} rows and {num_columns} columns.
+You are provided with a python polars dataframe (df) with {num_rows} rows and {num_columns} columns.
 This is the metadata of the dataframe:
 {df_head}.
 
@@ -28,7 +28,7 @@ class CorrectErrorPrompt(Prompt):
 
     text: str = """
 Today is {today_date}.
-You are provided with a pandas dataframe (df) with {num_rows} rows and {num_columns} columns.
+You are provided with a python polars dataframe (df) with {num_rows} rows and {num_columns} columns.
 This is the metadata of the dataframe:
 {df_head}.
 

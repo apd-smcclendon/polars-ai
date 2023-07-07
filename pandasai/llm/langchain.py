@@ -1,21 +1,20 @@
-from pandasai.prompts.base import Prompt
+from polarsai.prompts.base import Prompt
 from .base import LLM
 
 
-class LangchainLLM(LLM):
+class LangchainLLM(Query):
     """
-    Class to wrap Langchain LLMs and make PandasAI interoperable
-    with LangChain.
+    Class to wrap Langchain LLMs 
     """
 
-    _langchain_llm = None
+    langchain_llm = None
 
     def __init__(self, langchain_llm):
         self._langchain_llm = langchain_llm
 
     def call(self, instruction: Prompt, value: str, suffix: str = "") -> str:
         prompt = str(instruction) + value + suffix
-        return self._langchain_llm(prompt)
+        return langchain_llm.predict(prompt)
 
     @property
     def type(self) -> str:

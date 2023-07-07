@@ -12,9 +12,9 @@ class MultipleDataframesPrompt(Prompt):
 
     text: str = """
 Today is {today_date}.
-You are provided with the following pandas dataframes:"""
+You are provided with the following python polars dataframes:"""
     instruction: str = """
-When asked about the data, your response should include a python code that describes the dataframes provided.
+When asked about the data, your response should include a python code using the polars library that describes the dataframes provided.
 Using the provided dataframes and no other dataframes, return the python code to get the answer to the following question:
 """  # noqa: E501
 

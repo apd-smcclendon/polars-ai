@@ -17,7 +17,10 @@ Example:
 import ast
 import re
 from abc import ABC, abstractmethod
+from dotenv import load_dotenv
 from typing import Any, Dict, Optional
+from langchain.llms.sagemaker_endpoint import LLMContentHandler, SagemakerEndpoint
+from langchain.llms.base import LLM
 
 import openai
 import requests
@@ -30,33 +33,10 @@ from ..exceptions import (
 from ..helpers._optional import import_dependency
 from ..prompts.base import Prompt
 
+load_dotenv()
 
-class LLM:
-    """Base class to implement a new LLM."""
-
-    last_prompt: Optional[str] = None
-
-    def is_pandasai_llm(self) -> bool:
-        """
-        Return True if the LLM is from pandasAI.
-
-        Returns:
-            bool: True if the LLM is from pandasAI
-        """
-        return True
-
-    @property
-    def type(self) -> str:
-        """
-        Return type of LLM.
-
-        Raises:
-            APIKeyNotFoundError: Type has not been implemented
-
-        Returns:
-            str: Type of LLM a string
-        """
-        raise APIKeyNotFoundError("Type has not been implemented")
+class Query:
+    """Base class to query an LLM and extraxt the python code"""
 
     def _polish_code(self, code: str) -> str:
         """
@@ -114,21 +94,6 @@ class LLM:
 
         return code
 
-    @abstractmethod
-    def call(self, instruction: Prompt, value: str, suffix: str = "") -> str:
-        """
-        Execute the LLM with given prompt.
-
-        Args:
-            instruction (Prompt): Prompt
-            value (str): Value
-            suffix (str, optional): Suffix. Defaults to "".
-
-        Raises:
-            MethodNotImplementedError: Call method has not been implemented
-        """
-        raise MethodNotImplementedError("Call method has not been implemented")
-
     def generate_code(self, instruction: Prompt, prompt: str) -> str:
         """
         Generate the code based on the instruction and the given prompt.
@@ -139,7 +104,110 @@ class LLM:
         return self._extract_code(self.call(instruction, prompt, suffix="\n\nCode:\n"))
 
 
-class BaseOpenAI(LLM, ABC):
+class ContentHandler(LLMContentHandler):
+    # Below definitions are set as attributes
+    # by LLMContentHandler
+    content_type = "application/json"
+    accepts = "application/json"
+
+    def transform_input(self, prompt: str, model_kwargs={}) -> bytes:
+        """
+        method defined to allow custom SM endpoint to be used directly
+        this should be used if AWS CLI is set up
+
+        Parameters
+        ----------
+        prompt : str
+            model query.
+        model_kwargs : TYPE, optional
+            Parameters. The default is {}.
+
+        Returns
+        -------
+        bytes
+            API result.
+
+        """
+        input_str = json.dumps({"text_inputs": prompt, **model_kwargs})
+        return input_str.encode("utf-8")
+
+    def transform_output(self, output: bytes) -> str:
+        """
+        method used to convert model output into human readable JSON
+        format
+
+        Parameters
+        ----------
+        output : bytes
+            readable model response.
+
+        Returns
+        -------
+        str
+            decoded API call output JSON.
+
+        """
+        response_json = json.loads(output.read().decode("utf-8"))
+        return response_json["generated_texts"][0]
+
+
+class CustomLLM(LLM):
+
+    def _call(self, prompt: str, stop=None) -> str:
+        """
+        Method used by Langchain to call a loaded llm model. Uses model from 
+        .env var API endpoint to query
+
+        Parameters
+        ----------
+        prompt : str
+            text to be input into model.
+        stop : TYPE, optional
+            The default is None.
+
+        Returns
+        -------
+        str
+            model response.
+
+        """
+        _response = requests.post(
+            os.environ.get('ENDPOINT_NAME'), 
+            json.dumps({"user_token": os.environ.get('TOKEN'), 
+                        "prompt": prompt})
+        )
+        _res = json.loads(_response.content)
+        return _res["body"]
+
+    @property
+    def _identifying_params(self) -> Mapping[str, Any]:
+        """
+        property attribute from Langchain to define custom class
+        model name reference. Fixed here as flan but could be set in .env
+
+        Returns
+        -------
+        Mapping[str, Any]
+            model name.
+
+        """
+        return {"name_of_model": self.model_name}
+
+    @property
+    def _llm_type(self) -> str:
+        """
+        property attribute from Langchain to define custom class
+        reference to show custom class being used
+
+        Returns
+        -------
+        str
+            custom.
+
+        """
+        return "custom"
+
+class BaseOpenAI(Query, ABC):
     """Base class to implement a new OpenAI LLM
     LLM base class, this class is extended to be used with OpenAI API.
 
@@ -243,175 +311,3 @@ class BaseOpenAI(LLM, ABC):
         response = openai.ChatCompletion.create(**params)
 
         return response["choices"][0]["message"]["content"]
-
-
-class HuggingFaceLLM(LLM):
-    """Base class to implement a new Hugging Face LLM.
-
-    LLM base class is extended to be used with HuggingFace LLM Modes APIs
-
-    """
-
-    last_prompt: Optional[str] = None
-    api_token: str
-    _api_url: str = "https://api-inference.huggingface.co/models/"
-    _max_retries: int = 3
-
-    @property
-    def type(self) -> str:
-        return "huggingface-llm"
-
-    def query(self, payload):
-        """
-        Query the HF API
-        Args:
-            payload: A JSON form payload
-
-        Returns: Generated Response
-
-        """
-
-        headers = {"Authorization": f"Bearer {self.api_token}"}
-
-        response = requests.post(
-            self._api_url, headers=headers, json=payload, timeout=60
-        )
-
-        return response.json()[0]["generated_text"]
-
-    def call(self, instruction: Prompt, value: str, suffix: str = "") -> str:
-        """
-        A call method of HuggingFaceLLM class.
-        Args:
-            instruction (object): A prompt object
-            value (str):
-            suffix (str):
-
-        Returns (str): A string response
-
-        """
-
-        prompt = str(instruction)
-        payload = prompt + value + suffix
-
-        # sometimes the API doesn't return a valid response, so we retry passing the
-        # output generated from the previous call as the input
-        for _i in range(self._max_retries):
-            response = self.query({"inputs": payload})
-            payload = response
-            if response.count("<endCode>") >= 2:
-                break
-
-        # replace instruction + value from the inputs to avoid showing it in the output
-        output = response.replace(prompt + value + suffix, "")
-        return output
-
-
-class BaseGoogle(LLM):
-    """Base class to implement a new Google LLM
-
-    LLM base class is extended to be used with Google Palm API.
-    """
-
-    genai: Any
-    temperature: Optional[float] = 0
-    top_p: Optional[float] = 0.8
-    top_k: Optional[float] = 0.3
-    max_output_tokens: Optional[int] = 1000
-
-    def _configure(self, api_key: str):
-        """
-        Configure Google Palm API Key
-        Args:
-            api_key (str): A string of API keys generated from Google Cloud
-
-        Returns:
-
-        """
-
-        if not api_key:
-            raise APIKeyNotFoundError("Google Palm API key is required")
-
-        err_msg = "Install google-generativeai >= 0.1 for Google Palm API"
-        genai = import_dependency("google.generativeai", extra=err_msg)
-
-        genai.configure(api_key=api_key)
-        self.genai = genai
-
-    def _configurevertexai(self, project_id: str, location: str):
-        """
-        Configure Google VertexAi
-        Args:
-            project_id: GCP Project
-            location: Location of Project
-
-        Returns: Vertexai Object
-
-        """
-
-        err_msg = "Install google-cloud-aiplatform for Google Vertexai"
-        vertexai = import_dependency("vertexai", extra=err_msg)
-        vertexai.init(project=project_id, location=location)
-        self.vertexai = vertexai
-
-    def _valid_params(self):
-        return ["temperature", "top_p", "top_k", "max_output_tokens"]
-
-    def _set_params(self, **kwargs):
-        """
-        Set Parameters
-        Args:
-            **kwargs: ["temperature", "top_p", "top_k", "max_output_tokens"]
-
-        Returns:
-
-        """
-
-        valid_params = self._valid_params()
-        for key, value in kwargs.items():
-            if key in valid_params:
-                setattr(self, key, value)
-
-    def _validate(self):
-        """Validates the parameters for Google"""
-
-        if self.temperature is not None and not 0 <= self.temperature <= 1:
-            raise ValueError("temperature must be in the range [0.0, 1.0]")
-
-        if self.top_p is not None and not 0 <= self.top_p <= 1:
-            raise ValueError("top_p must be in the range [0.0, 1.0]")
-
-        if self.top_k is not None and not 0 <= self.top_k <= 1:
-            raise ValueError("top_k must be in the range [0.0, 1.0]")
-
-        if self.max_output_tokens is not None and self.max_output_tokens <= 0:
-            raise ValueError("max_output_tokens must be greater than zero")
-
-    @abstractmethod
-    def _generate_text(self, prompt: str) -> str:
-        """
-        Generates text for prompt, specific to implementation.
-
-        Args:
-            prompt (str): Prompt
-
-        Returns:
-            str: LLM response
-        """
-        raise MethodNotImplementedError("method has not been implemented")
-
-    def call(self, instruction: Prompt, value: str, suffix: str = "") -> str:
-        """
-        Call the Google LLM.
-
-        Args:
-            instruction (object): Instruction to pass
-            value (str): Value to pass
-            suffix (str): Suffix to pass
-
-        Returns:
-            str: Response
-        """
-        self.last_prompt = str(instruction) + value
-        prompt = str(instruction) + value + suffix
-        return self._generate_text(prompt)
