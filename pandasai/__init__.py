@@ -1,39 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-PandasAI is a wrapper around a LLM to make dataframes conversational
-
-This module includes the implementation of basis  PandasAI class with methods to run
-the LLMs models on Pandas dataframes. Following LLMs are implemented so far.
-
-Example:
-
-    This module is the Entry point of the `pandasai` package. Following is an example
-    of how to use this Class.
-
-    ```python
-    import pandas as pd
-    from pandasai import PandasAI
-
-    # Sample DataFrame
-    df = pd.DataFrame({
-        "country": ["United States", "United Kingdom", "France", "Germany", "Italy",
-        "Spain", "Canada", "Australia", "Japan", "China"],
-        "gdp": [19294482071552, 2891615567872, 2411255037952, 3435817336832,
-        1745433788416, 1181205135360, 1607402389504, 1490967855104, 4380756541440,
-        14631844184064],
-        "happiness_index": [6.94, 7.16, 6.66, 7.07, 6.38, 6.4, 7.23, 7.22, 5.87, 5.12]
-    })
-
-    # Instantiate a LLM
-    from pandasai.llm.openai import OpenAI
-    llm = OpenAI(api_token="YOUR_API_TOKEN")
-
-    pandas_ai = PandasAI(llm)
-    pandas_ai(df, prompt='Which are the 5 happiest countries?')
-
-    ```
-"""
-
 import ast
 import io
 import logging
@@ -47,22 +12,19 @@ import importlib.metadata
 
 __version__ = importlib.metadata.version(__package__ or __name__)
 import astor
-import pandas as pd
+import polars as pl
 from .constants import (
     WHITELISTED_BUILTINS,
     WHITELISTED_LIBRARIES,
 )
 from .exceptions import BadImportError, LLMNotFoundError
 from .helpers._optional import import_dependency
-from .helpers.anonymizer import anonymize_dataframe_head
 from .helpers.cache import Cache
 from .helpers.notebook import Notebook
 from .helpers.save_chart import add_save_chart
 from .helpers.shortcuts import Shortcuts
-from .llm.base import LLM
+from .llm.base import Query
 from .llm.langchain import LangchainLLM
-from .middlewares.base import Middleware
-from .middlewares.charts import ChartsMiddleware
 from .prompts.base import Prompt
 from .prompts.correct_error_prompt import CorrectErrorPrompt
 from .prompts.correct_multiples_prompt import CorrectMultipleDataframesErrorPrompt
@@ -77,64 +39,27 @@ def get_version():
     """
     from importlib.metadata import version
 
-    return version("pandasai")
+    return version("polarsai")
 
 
 __version__ = get_version()
 
 
-class PandasAI(Shortcuts):
+class PolarsAI(Shortcuts):
     """
     PandasAI is a wrapper around a LLM to make dataframes conversational.
 
-
-    This is an entry point of `pandasai` object. This class consists of methods
-    to interface the LLMs with Pandas     dataframes. A pandas dataframe metadata i.e.
-    df.head() and prompt is passed on to chosen LLMs API end point to generate a Python
-    code to answer the questions asked. The resultant python code is run on actual data
-    and answer is converted into a conversational form.
+    This ...
 
     Note:
         Do not include the `self` parameter in the ``Args`` section.
     Args:
         _llm (obj): LLMs option to be used for API access
-        _verbose (bool, optional): To show the intermediate outputs e.g. python code
-        generated and execution step on the prompt. Default to False
-        _is_conversational_answer (bool, optional): Whether to return answer in
-        conversational form. Default to False
-        _enforce_privacy (bool, optional): Do not display the data on prompt in case of
-        Sensitive data. Default to False
-        _max_retries (int, optional): max no. of tries to generate code on failure.
-        Default to 3
-        _in_notebook (bool, optional): Whether to run code in notebook. Default to False
-        _original_instructions (dict, optional): The dict of instruction to run. Default
-        to None
-        _cache (Cache, optional): Cache object to store the results. Default to None
-        _enable_cache (bool, optional): Whether to enable cache. Default to True
-        _logger (logging.Logger, optional): Logger object to log the messages. Default
-        to None
-        _logs (List[dict], optional): List of logs to be stored. Default to []
-        _prompt_id (str, optional): Unique ID to differentiate calls. Default to None
-        _middlewares (List[Middleware], optional): List of middlewares to run. Default
-        to [ChartsMiddleware()]
-        _additional_dependencies (List[dict], optional): List of additional dependencies
-        to be added. Default to []
-        _custom_whitelisted_dependencies (List[str], optional): List of custom
-        whitelisted dependencies. Default to []
-        last_code_generated (str, optional): Pass last Code if generated. Default to
-        None
-        last_code_executed (str, optional): Pass the last execution / run. Default to
-        None
-        code_output (str, optional): The code output if any. Default to None
-        last_error (str, optional): Error of running code last time. Default to None
-        prompt_id (str, optional): Unique ID to differentiate calls. Default to None
-
-
+       
     Returns (str): Response to a Question related to Data
 
     """
-
-    _llm: LLM
+    _query = Query
     _verbose: bool = False
     _is_conversational_answer: bool = False
     _enforce_privacy: bool = False
@@ -149,7 +74,6 @@ class PandasAI(Shortcuts):
     _cache: Cache = None
     _enable_cache: bool = True
     _prompt_id: Optional[str] = None
-    _middlewares: List[Middleware] = [ChartsMiddleware()]
     _additional_dependencies: List[dict] = []
     _custom_whitelisted_dependencies: List[str] = []
     _start_time: float = 0
@@ -163,14 +87,13 @@ class PandasAI(Shortcuts):
 
     def __init__(
         self,
-        llm=None,
+        llm_type=None,
         conversational=False,
         verbose=False,
         enforce_privacy=False,
         save_charts=False,
         save_charts_path=None,
         enable_cache=True,
-        middlewares=None,
         custom_whitelisted_dependencies=None,
         enable_logging=True,
         non_default_prompts: Optional[Dict[str, Type[Prompt]]] = None,
@@ -180,7 +103,7 @@ class PandasAI(Shortcuts):
         __init__ method of the Class PandasAI
 
         Args:
-            llm (object): LLMs option to be used for API access. Default is None
+            llm (string): LLMs option to be used 
             conversational (bool): Whether to return answer in conversational form.
             Default to False
             verbose (bool): To show the intermediate outputs e.g. python code
@@ -203,7 +126,7 @@ class PandasAI(Shortcuts):
         # noinspection PyArgumentList
         # https://stackoverflow.com/questions/61226587/pycharm-does-not-recognize-logging-basicconfig-handlers-argument
         if enable_logging:
-            handlers = [logging.FileHandler("pandasai.log")]
+            handlers = [logging.FileHandler("polarsai.log")]
         else:
             handlers = []
 
@@ -219,7 +142,7 @@ class PandasAI(Shortcuts):
 
         if llm is None:
             raise LLMNotFoundError(
-                "An LLM should be provided to instantiate a PandasAI instance"
+                "An LLM should be provided to instantiate a PolarsAI class instance"
             )
         self._load_llm(llm)
         self._is_conversational_answer = conversational
@@ -241,31 +164,43 @@ class PandasAI(Shortcuts):
         if self._enable_cache:
             self._cache = Cache()
 
-        if middlewares is not None:
-            self.add_middlewares(*middlewares)
+        #if middlewares is not None:
+        #    self.add_middlewares(*middlewares)
 
         if custom_whitelisted_dependencies is not None:
             self._custom_whitelisted_dependencies = custom_whitelisted_dependencies
 
-    def _load_llm(self, llm):
+    def _load_llm(self, llm_type: str):
         """
-        Check if it is a PandasAI LLM or a Langchain LLM.
-        If it is a Langchain LLM, wrap it in a PandasAI LLM.
 
         Args:
-            llm (object): LLMs option to be used for API access
-
-        Raises:
-            BadImportError: If the LLM is a Langchain LLM but the langchain package
-            is not installed
+            llm_type (object): llm instantiation
         """
-
-        try:
-            llm.is_pandasai_llm()
-        except AttributeError:
-            llm = LangchainLLM(llm)
-
-        self._llm = llm
+        match llm_type:
+            case "LlamaCpp":
+                llm = LlamaCpp(
+                    model_path=self.model_path, 
+                    callbacks=callbacks, 
+                    verbose=False
+                )
+            case "OpenAI":
+                llm = OpenAI(
+                temperature=0.9,
+                openai_api_key=os.environ.get("OPENAI_TOKEN")
+                )
+            case "SageMaker":
+                content_handler = ContentHandler()
+                llm = SagemakerEndpoint(
+                    endpoint_name=self._endpoint,
+                    region_name=self._aws_region,
+                    model_kwargs=self.parameters,
+                    content_handler=_content_handler,
+                )
+            case "Custom":
+                llm = self.LangchainLLM
+            case _:
+                raise BadImportError("llm not recognized")
+        setattr(_query, llm, llm)
 
     def conversational_answer(self, question: str, answer: str) -> str:
         """
@@ -279,15 +214,10 @@ class PandasAI(Shortcuts):
 
         """
 
-        if self._enforce_privacy:
-            # we don't want to send potentially sensitive data to the LLM server
-            # if the user has set enforce_privacy to True
-            return answer
-
         generate_response_instruction = self._non_default_prompts.get(
             "generate_response", GenerateResponsePrompt
         )(question=question, answer=answer)
-        return self._llm.call(generate_response_instruction, "")
+        return self._query.call(generate_response_instruction, "")
 
     def run(
         self,
@@ -299,10 +229,10 @@ class PandasAI(Shortcuts):
         use_error_correction_framework: bool = True,
     ) -> Union[str, pd.DataFrame]:
         """
-        Run the PandasAI to make Dataframes Conversational.
+        Run the PolarsAI to make Dataframes Conversational.
 
         Args:
-            data_frame (Union[pd.DataFrame, List[pd.DataFrame]]): A pandas Dataframe
+            data_frame (Union[pd.DataFrame, List[pd.DataFrame]]): A polars Dataframe
             prompt (str): A prompt to query about the Dataframe
             is_conversational_answer (bool): Whether to return answer in conversational
             form. Default to False
@@ -319,13 +249,13 @@ class PandasAI(Shortcuts):
         self._start_time = time.time()
 
         self.log(f"Question: {prompt}")
-        self.log(f"Running PandasAI with {self._llm.type} LLM...")
+        self.log(f"Running PolarsAI with {self._llm_type} LLM...")
 
         self._prompt_id = str(uuid.uuid4())
         self.log(f"Prompt ID: {self._prompt_id}")
 
         try:
-            if self._enable_cache and self._cache and self._cache.get(prompt):
+            if self._enable_cache and self._cache.get(prompt):
                 self.log("Using cached response")
                 code = self._cache.get(prompt)
             else:
@@ -335,16 +265,14 @@ class PandasAI(Shortcuts):
 
                 if multiple:
                     heads = [
-                        anonymize_dataframe_head(dataframe)
-                        if anonymize_df
-                        else dataframe.head(rows_to_display)
+                        dataframe.head(rows_to_display)
                         for dataframe in data_frame
                     ]
 
                     multiple_dataframes_instruction = self._non_default_prompts.get(
                         "multiple_dataframes", MultipleDataframesPrompt
                     )
-                    code = self._llm.generate_code(
+                    code = self._query.generate_code(
                         multiple_dataframes_instruction(dataframes=heads),
                         prompt,
                     )
@@ -356,9 +284,6 @@ class PandasAI(Shortcuts):
 
                 else:
                     df_head = data_frame.head(rows_to_display)
-                    if anonymize_df:
-                        df_head = anonymize_dataframe_head(df_head)
-                    df_head = df_head.to_csv(index=False)
 
                     generate_code_instruction = self._non_default_prompts.get(
                         "generate_python_code", GeneratePythonCodePrompt
@@ -368,7 +293,7 @@ class PandasAI(Shortcuts):
                         num_rows=data_frame.shape[0],
                         num_columns=data_frame.shape[1],
                     )
-                    code = self._llm.generate_code(
+                    code = self._query.generate_code(
                         generate_code_instruction,
                         prompt,
                     )
@@ -396,9 +321,6 @@ class PandasAI(Shortcuts):
             if show_code and self._in_notebook:
                 self.notebook.create_new_cell(code)
 
-            for middleware in self._middlewares:
-                code = middleware(code)
-
             answer = self.run_code(
                 code,
                 data_frame,
@@ -424,16 +346,6 @@ class PandasAI(Shortcuts):
                 "because of the following error:\n"
                 f"\n{exception}\n"
             )
-
-    def add_middlewares(self, *middlewares: List[Middleware]):
-        """
-        Add middlewares to PandasAI instance.
-
-        Args:
-            *middlewares: A list of middlewares
-
-        """
-        self._middlewares.extend(middlewares)
 
     def clear_cache(self):
         """
@@ -627,7 +539,7 @@ class PandasAI(Shortcuts):
 
         Args:
             code (str): A python code to execute
-            data_frame (pd.DataFrame): A full Pandas DataFrame
+            data_frame (pd.DataFrame): A full Polars DataFrame
             use_error_correction_framework (bool): Turn on Error Correction mechanism.
             Default to True
 

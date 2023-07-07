@@ -37,6 +37,7 @@ load_dotenv()
 
 class Query:
     """Base class to query an LLM and extraxt the python code"""
+    llm = None 
 
     def _polish_code(self, code: str) -> str:
         """
@@ -104,109 +105,11 @@ class Query:
         return self._extract_code(self.call(instruction, prompt, suffix="\n\nCode:\n"))
 
 
-class ContentHandler(LLMContentHandler):
-    # Below definitions are set as attributes
-    # by LLMContentHandler
-    content_type = "application/json"
-    accepts = "application/json"
-
-    def transform_input(self, prompt: str, model_kwargs={}) -> bytes:
-        """
-        method defined to allow custom SM endpoint to be used directly
-        this should be used if AWS CLI is set up
-
-        Parameters
-        ----------
-        prompt : str
-            model query.
-        model_kwargs : TYPE, optional
-            Parameters. The default is {}.
-
-        Returns
-        -------
-        bytes
-            API result.
-
-        """
-        input_str = json.dumps({"text_inputs": prompt, **model_kwargs})
-        return input_str.encode("utf-8")
-
-    def transform_output(self, output: bytes) -> str:
-        """
-        method used to convert model output into human readable JSON
-        format
-
-        Parameters
-        ----------
-        output : bytes
-            readable model response.
-
-        Returns
-        -------
-        str
-            decoded API call output JSON.
-
-        """
-        response_json = json.loads(output.read().decode("utf-8"))
-        return response_json["generated_texts"][0]
 
 
-class CustomLLM(LLM):
 
-    def _call(self, prompt: str, stop=None) -> str:
-        """
-        Method used by Langchain to call a loaded llm model. Uses model from 
-        .env var API endpoint to query
 
-        Parameters
-        ----------
-        prompt : str
-            text to be input into model.
-        stop : TYPE, optional
-            The default is None.
-
-        Returns
-        -------
-        str
-            model response.
-
-        """
-        _response = requests.post(
-            os.environ.get('ENDPOINT_NAME'), 
-            json.dumps({"user_token": os.environ.get('TOKEN'), 
-                        "prompt": prompt})
-        )
-        _res = json.loads(_response.content)
-        return _res["body"]
-
-    @property
-    def _identifying_params(self) -> Mapping[str, Any]:
-        """
-        property attribute from Langchain to define custom class
-        model name reference. Fixed here as flan but could be set in .env
-
-        Returns
-        -------
-        Mapping[str, Any]
-            model name.
-
-        """
-        return {"name_of_model": self.model_name}
-
-    @property
-    def _llm_type(self) -> str:
-        """
-        property attribute from Langchain to define custom class
-        reference to show custom class being used
-
-        Returns
-        -------
-        str
-            custom.
-
-        """
-        return "custom"
-
+#deprecated class#
 class BaseOpenAI(Query, ABC):
     """Base class to implement a new OpenAI LLM
     LLM base class, this class is extended to be used with OpenAI API.
