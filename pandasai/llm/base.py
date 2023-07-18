@@ -13,25 +13,27 @@ Example:
         Custom Class Starts here!!
     ```
 """
-
 import ast
 import re
 from abc import ABC, abstractmethod
 from dotenv import load_dotenv
 from typing import Any, Dict, Optional
 from langchain.llms.sagemaker_endpoint import LLMContentHandler, SagemakerEndpoint
-from langchain.llms.base import LLM
+#from langchain_base import LangchainLLM
+import sys
+sys.path.append('C:/Users/aaron/OneDrive/Documents/polarsai/polars-ai/pandasai')
 
 import openai
 import requests
 
-from ..exceptions import (
+from core.exceptions import (
     APIKeyNotFoundError,
     MethodNotImplementedError,
     NoCodeFoundError,
 )
-from ..helpers._optional import import_dependency
-from ..prompts.base import Prompt
+
+from helpers._optional import import_dependency
+from prompts.base import Prompt
 
 load_dotenv()
 
@@ -102,7 +104,7 @@ class Query:
         Returns:
             str: Code
         """
-        return self._extract_code(self.call(instruction, prompt, suffix="\n\nCode:\n"))
+        return self._extract_code(llm.call(instruction, prompt, suffix="\n\nCode:\n"))
 
 
 

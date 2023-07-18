@@ -16,7 +16,7 @@ You are provided with the following python polars dataframes:"""
         code: str,
         error_returned: Exception,
         question: str,
-        df_head: list[pd.DataFrame],
+        df_head: list,
     ):
         for i, dataframe in enumerate(df_head, start=1):
             row, col = dataframe.shape

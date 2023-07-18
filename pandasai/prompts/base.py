@@ -1,8 +1,9 @@
 """ Base class to implement a new Prompt
 In order to better handle the instructions, this prompt module is written.
 """
-
-from polarsai.exceptions import MethodNotImplementedError
+import sys
+sys.path.append('C:/Users/aaron/OneDrive/Documents/polarsai/polars-ai/pandasai')
+from core.exceptions import MethodNotImplementedError
 
 
 class Prompt:
