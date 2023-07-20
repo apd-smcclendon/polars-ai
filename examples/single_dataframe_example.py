@@ -1,7 +1,4 @@
 import polars as pl
-import sys
-sys.path.append('C:/Users/aaron/OneDrive/Documents/polarsai/polars-ai/pandasai')
-sys.path.append('C:/Users/aaron/OneDrive/Documents/polarsai/polars-ai/pandasai/core')
 from polarsAI import PolarsAI
 
 df = pl.DataFrame(
