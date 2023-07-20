@@ -2,7 +2,6 @@
 In order to better handle the instructions, this prompt module is written.
 """
 import sys
-sys.path.append('C:/Users/aaron/OneDrive/Documents/polarsai/polars-ai/pandasai')
 from core.exceptions import MethodNotImplementedError
 
 

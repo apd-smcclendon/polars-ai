@@ -1,0 +1,26 @@
+Metadata-Version: 2.1
+Name: polarsai
+Version: 0.0.3
+Summary: poalrsai is an integration between the Python Polars library and LLM models created by Aimpoint Digital, LP
+Home-page: https://github.com/Aimpoint-Digital/polars-ai
+Author: Aaron McClendon
+Author-email: aaron.mcclendon@aimpointdigital.com
+Project-URL: Bug Tracker, https://github.com/Aimpoint-Digital/polars-ai
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+# PolarsAI
+A library converted from PandasAI to run with the Python Polars library
+## Authors
+- [Aaron McClendon (Aimpoint Digital)](https://www.github.com/apd-smcclendon)
+## Installation
+Install my-project with pip
+```bash
+  pip install polarsai
+```
+## Requirements
+* numpy

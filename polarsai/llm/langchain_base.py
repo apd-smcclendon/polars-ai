@@ -1,5 +1,4 @@
 import sys
-sys.path.append('C:/Users/aaron/OneDrive/Documents/polarsai/polars-ai/pandasai')
 from prompts.base import Prompt
 
 

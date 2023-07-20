@@ -19,9 +19,8 @@ from abc import ABC, abstractmethod
 from dotenv import load_dotenv
 from typing import Any, Dict, Optional
 from langchain.llms.sagemaker_endpoint import LLMContentHandler, SagemakerEndpoint
-#from langchain_base import LangchainLLM
 import sys
-sys.path.append('C:/Users/aaron/OneDrive/Documents/polarsai/polars-ai/pandasai')
+
 
 import openai
 import requests

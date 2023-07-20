@@ -6,14 +6,11 @@ import os
 from dotenv import load_dotenv
 import re
 import sys
-sys.path.append('C:/Users/aaron/OneDrive/Documents/polarsai/polars-ai/pandasai')
 import uuid
 import time
 from contextlib import redirect_stdout
 from typing import List, Optional, Union, Dict, Type
 import importlib.metadata
-
-#__version__ = importlib.metadata.version(__package__ or __name__)
 import astor
 import polars as pl
 from constants import (
@@ -37,17 +34,6 @@ from prompts.generate_response import GenerateResponsePrompt
 from prompts.multiple_dataframes import MultipleDataframesPrompt
 
 load_dotenv()
-
-def get_version():
-    """
-    Get the version from the package metadata
-    """
-    from importlib.metadata import version
-
-    return version("polarsai")
-
-
-#__version__ = get_version()
 
 
 class PolarsAI(Shortcuts):
