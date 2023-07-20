@@ -2,6 +2,8 @@
 import ast
 import io
 import logging
+import os
+from dotenv import load_dotenv
 import re
 import sys
 sys.path.append('C:/Users/aaron/OneDrive/Documents/polarsai/polars-ai/pandasai')
@@ -26,6 +28,7 @@ from helpers.save_chart import add_save_chart
 from helpers.shortcuts import Shortcuts
 from llm.base import Query
 from llm.langchain_base import LangchainLLM
+from langchain.llms import LlamaCpp, OpenAI
 from prompts.base import Prompt
 from prompts.correct_error_prompt import CorrectErrorPrompt
 from prompts.correct_multiples_prompt import CorrectMultipleDataframesErrorPrompt
@@ -33,6 +36,7 @@ from prompts.generate_python_code import GeneratePythonCodePrompt
 from prompts.generate_response import GenerateResponsePrompt
 from prompts.multiple_dataframes import MultipleDataframesPrompt
 
+load_dotenv()
 
 def get_version():
     """
@@ -60,10 +64,9 @@ class PolarsAI(Shortcuts):
     Returns (str): Response to a Question related to Data
 
     """
-    _query = Query
+    _query = Query()
     _verbose: bool = False
     _is_conversational_answer: bool = False
-    _enforce_privacy: bool = False
     _max_retries: int = 3
     _in_notebook: bool = False
     _original_instructions: dict = {
@@ -88,10 +91,9 @@ class PolarsAI(Shortcuts):
 
     def __init__(
         self,
-        llm_type=None,
+        llm_type=None, 
         conversational=False,
         verbose=False,
-        enforce_privacy=False,
         save_charts=False,
         save_charts_path=None,
         enable_cache=True,
@@ -104,7 +106,7 @@ class PolarsAI(Shortcuts):
         __init__ method of the Class PandasAI
 
         Args:
-            llm (string): LLMs option to be used 
+            llm_type (string): LLM option to be used 
             conversational (bool): Whether to return answer in conversational form.
             Default to False
             verbose (bool): To show the intermediate outputs e.g. python code
@@ -140,15 +142,14 @@ class PolarsAI(Shortcuts):
             handlers=handlers,
         )
         self._logger = logging.getLogger(__name__)
-
-        if llm is None:
+        self.llm_type = llm_type
+        if self.llm_type is None:
             raise LLMNotFoundError(
                 "An LLM should be provided to instantiate a PolarsAI class instance"
             )
-        self._load_llm(llm)
+        self._load_llm(self.llm_type)
         self._is_conversational_answer = conversational
         self._verbose = verbose
-        self._enforce_privacy = enforce_privacy
         self._save_charts = save_charts
         self._save_charts_path = save_charts_path
         self._process_id = str(uuid.uuid4())
@@ -179,29 +180,29 @@ class PolarsAI(Shortcuts):
         """
         match llm_type:
             case "LlamaCpp":
-                llm = LlamaCpp(
+                self.llm = LlamaCpp(
                     model_path=self.model_path, 
                     callbacks=callbacks, 
                     verbose=False
                 )
             case "OpenAI":
-                llm = OpenAI(
+                self.llm = OpenAI(
                 temperature=0.9,
                 openai_api_key=os.environ.get("OPENAI_TOKEN")
                 )
             case "SageMaker":
                 content_handler = ContentHandler()
-                llm = SagemakerEndpoint(
+                self.llm = SagemakerEndpoint(
                     endpoint_name=self._endpoint,
                     region_name=self._aws_region,
                     model_kwargs=self.parameters,
                     content_handler=_content_handler,
                 )
             case "Custom":
-                llm = self.LangchainLLM
+                self.llm = self.LangchainLLM
             case _:
                 raise BadImportError("llm not recognized")
-        setattr(_query, llm, llm)
+        self._query.llm = self.llm
 
     def conversational_answer(self, question: str, answer: str) -> str:
         """
@@ -233,7 +234,7 @@ class PolarsAI(Shortcuts):
         Run the PolarsAI to make Dataframes Conversational.
 
         Args:
-            data_frame (Union[pd.DataFrame, List[pd.DataFrame]]): A polars Dataframe
+            data_frame (Union[pl.DataFrame, List[pl.DataFrame]]): A polars Dataframe
             prompt (str): A prompt to query about the Dataframe
             is_conversational_answer (bool): Whether to return answer in conversational
             form. Default to False
@@ -250,7 +251,7 @@ class PolarsAI(Shortcuts):
         self._start_time = time.time()
 
         self.log(f"Question: {prompt}")
-        self.log(f"Running PolarsAI with {self._llm_type} LLM...")
+        self.log(f"Running PolarsAI with {self.llm_type} LLM...")
 
         self._prompt_id = str(uuid.uuid4())
         self.log(f"Prompt ID: {self._prompt_id}")
@@ -260,7 +261,7 @@ class PolarsAI(Shortcuts):
                 self.log("Using cached response")
                 code = self._cache.get(prompt)
             else:
-                rows_to_display = 0 if self._enforce_privacy else 5
+                rows_to_display =  5
 
                 multiple: bool = isinstance(data_frame, list)
 
@@ -294,9 +295,10 @@ class PolarsAI(Shortcuts):
                         num_rows=data_frame.shape[0],
                         num_columns=data_frame.shape[1],
                     )
+                    
                     code = self._query.generate_code(
-                        generate_code_instruction,
-                        prompt,
+                        instruction = generate_code_instruction,
+                        prompt = prompt,
                     )
 
                     self._original_instructions = {
@@ -355,38 +357,6 @@ class PolarsAI(Shortcuts):
         if self._cache:
             self._cache.clear()
 
-    def __call__(
-        self,
-        data_frame: Union[pl.DataFrame, List[pl.DataFrame]],
-        prompt: str,
-        is_conversational_answer: bool = None,
-        show_code: bool = False,
-        anonymize_df: bool = True,
-        use_error_correction_framework: bool = True,
-    ) -> Union[str, pl.DataFrame]:
-        """
-        __call__ method of PandasAI class. It calls the `run` method.
-
-        Args:
-            data_frame:
-            prompt:
-            is_conversational_answer:
-            show_code:
-            anonymize_df:
-            use_error_correction_framework:
-
-        Returns (str): Answer to the Input Questions about the DataFrame.
-
-        """
-
-        return self.run(
-            data_frame,
-            prompt,
-            is_conversational_answer,
-            show_code,
-            anonymize_df,
-            use_error_correction_framework,
-        )
 
     def _check_imports(self, node: Union[ast.Import, ast.ImportFrom]):
         """
@@ -406,7 +376,7 @@ class PolarsAI(Shortcuts):
 
         library = module.split(".")[0]
 
-        if library == "pandas":
+        if library == "polars":
             return
 
         if library in WHITELISTED_LIBRARIES + self._custom_whitelisted_dependencies:
@@ -477,7 +447,7 @@ class PolarsAI(Shortcuts):
         """
 
         return {
-            "pd": pd,
+            "pl": pl,
             **{
                 lib["alias"]: getattr(import_dependency(lib["module"]), lib["name"])
                 if hasattr(import_dependency(lib["module"]), lib["name"])
@@ -540,7 +510,7 @@ class PolarsAI(Shortcuts):
 
         Args:
             code (str): A python code to execute
-            data_frame (pd.DataFrame): A full Polars DataFrame
+            data_frame (pl.DataFrame): A full Polars DataFrame
             use_error_correction_framework (bool): Turn on Error Correction mechanism.
             Default to True
 
@@ -561,11 +531,11 @@ class PolarsAI(Shortcuts):
         self.last_code_executed = code_to_run
         self.log(
             f"""
-Code running:
-```
-{code_to_run}
-```"""
-        )
+            Code running:
+            ```
+            {code_to_run}
+            ```"""
+            )
 
         environment: dict = self._get_environment()
 
