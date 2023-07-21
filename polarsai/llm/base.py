@@ -25,7 +25,7 @@ import sys
 import openai
 import requests
 
-from core.exceptions import (
+from helpers.exceptions import (
     APIKeyNotFoundError,
     MethodNotImplementedError,
     NoCodeFoundError,

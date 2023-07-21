@@ -2,7 +2,7 @@
 In order to better handle the instructions, this prompt module is written.
 """
 import sys
-from core.exceptions import MethodNotImplementedError
+from helpers.exceptions import MethodNotImplementedError
 
 
 class Prompt:

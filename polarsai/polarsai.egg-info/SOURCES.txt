@@ -2,13 +2,11 @@ LICENSE
 README.md
 pyproject.toml
 setup.cfg
-polarsai/core/__init__.py
-polarsai/core/constants.py
-polarsai/core/exceptions.py
-polarsai/core/polarsai.py
 polarsai/helpers/__init__.py
 polarsai/helpers/_optional.py
 polarsai/helpers/cache.py
+polarsai/helpers/constants.py
+polarsai/helpers/exceptions.py
 polarsai/helpers/from_excel.py
 polarsai/helpers/notebook.py
 polarsai/helpers/save_chart.py

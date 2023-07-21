@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: polarsai
-Version: 0.0.3
+Version: 0.0.13
 Summary: poalrsai is an integration between the Python Polars library and LLM models created by Aimpoint Digital, LP
 Home-page: https://github.com/Aimpoint-Digital/polars-ai
 Author: Aaron McClendon

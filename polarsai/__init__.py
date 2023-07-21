@@ -13,11 +13,11 @@ from typing import List, Optional, Union, Dict, Type
 import importlib.metadata
 import astor
 import polars as pl
-from constants import (
+from helpers.constants import (
     WHITELISTED_BUILTINS,
     WHITELISTED_LIBRARIES,
 )
-from exceptions import BadImportError, LLMNotFoundError
+from helpers.exceptions import BadImportError, LLMNotFoundError
 from helpers._optional import import_dependency
 from helpers.cache import Cache
 from helpers.notebook import Notebook
@@ -33,7 +33,7 @@ from prompts.generate_python_code import GeneratePythonCodePrompt
 from prompts.generate_response import GenerateResponsePrompt
 from prompts.multiple_dataframes import MultipleDataframesPrompt
 
-load_dotenv()
+#load_dotenv()
 
 
 class PolarsAI(Shortcuts):
@@ -80,11 +80,13 @@ class PolarsAI(Shortcuts):
         llm_type=None, 
         conversational=False,
         verbose=False,
+        model_path=None, 
         save_charts=False,
         save_charts_path=None,
         enable_cache=True,
         custom_whitelisted_dependencies=None,
         enable_logging=True,
+        api_token=None,
         non_default_prompts: Optional[Dict[str, Type[Prompt]]] = None,
     ):
         """
@@ -133,6 +135,8 @@ class PolarsAI(Shortcuts):
             raise LLMNotFoundError(
                 "An LLM should be provided to instantiate a PolarsAI class instance"
             )
+        self._api_token = api_token
+        self._model_path = model_path
         self._load_llm(self.llm_type)
         self._is_conversational_answer = conversational
         self._verbose = verbose
@@ -167,14 +171,14 @@ class PolarsAI(Shortcuts):
         match llm_type:
             case "LlamaCpp":
                 self.llm = LlamaCpp(
-                    model_path=self.model_path, 
+                    model_path=self._model_path, 
                     callbacks=callbacks, 
                     verbose=False
                 )
             case "OpenAI":
                 self.llm = OpenAI(
                 temperature=0.9,
-                openai_api_key=os.environ.get("OPENAI_TOKEN")
+                openai_api_key=self._api_token
                 )
             case "SageMaker":
                 content_handler = ContentHandler()
@@ -481,7 +485,7 @@ class PolarsAI(Shortcuts):
                 num_columns=self._original_instructions["num_columns"],
             )
 
-        return self._llm.generate_code(error_correcting_instruction, "")
+        return self._query.generate_code(error_correcting_instruction, "")
 
     def run_code(
         self,
@@ -601,5 +605,5 @@ class PolarsAI(Shortcuts):
     @property
     def last_prompt(self) -> str:
         """Return the last prompt that was executed."""
-        if self._llm:
-            return self._llm.last_prompt
+        if self._query:
+            return self._query.last_prompt
