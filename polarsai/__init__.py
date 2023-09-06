@@ -38,7 +38,7 @@ from prompts.multiple_dataframes import MultipleDataframesPrompt
 
 class PolarsAI(Shortcuts):
     """
-    PandasAI is a wrapper around a LLM to make dataframes conversational.
+    PolarsAI is a wrapper around a LLM to make dataframes conversational.
 
     This ...
 
